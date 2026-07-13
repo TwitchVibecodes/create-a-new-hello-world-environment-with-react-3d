@@ -248,13 +248,20 @@
     // Built entirely from primitives: a green top hat with a gold buckle, a
     // ruddy face and ginger beard, a green coat, and one arm flung out toward
     // the diamond in a happy "ta-da!" gesture. He gives a gentle excited bob.
+    // A properly ruddy little leprechaun palette.
     const LEP = {
-      coat: "#111114",
-      hat: "#050506",
-      band: "#000000",
-      gold: "#facc15",
-      skin: "#000000",
-      beard: "#ff5fbf",
+      coat: "#1f8a44",      // emerald green coat
+      coatDark: "#15632f",  // shaded green / trim
+      hat: "#12722f",       // matching green top hat
+      band: "#0c3d1a",      // near-black hat band
+      gold: "#f5c518",      // buckle / buttons
+      skin: "#eab48c",      // warm ruddy skin
+      skinShade: "#d99a72", // cheeks / hands
+      cheek: "#e07a5f",     // rosy blush
+      beard: "#e0722c",     // ginger beard & hair
+      eye: "#20303a",
+      shoe: "#2a1a10",      // dark leather shoes
+      sole: "#f5c518",      // gold shoe buckles
     };
 
     // A puff of Larry's exhaust. Each fart has a phase offset so the trail is
@@ -262,11 +269,59 @@
     const FART_COLORS = ["#b7c94a", "#9caf3a", "#c9d66b", "#a7bf4f"];
     const FART_COUNT = 16;
 
+    // ---- Yoga poses --------------------------------------------------------
+    // Each pose is a set of target joint rotations [x, y, z] (radians). Larry
+    // smoothly flows from one asana to the next while he floats in mid-air.
+    // Convention: arms/legs hang straight down at rest; rotating a shoulder's
+    // z lifts that arm out to the side / overhead.
+    const YOGA_POSES = [
+      { name: "Lotus",
+        torso: [0, 0, 0], head: [0.12, 0, 0],
+        lSh: [0.35, 0, -0.7], lEl: [-1.0, 0, 0],
+        rSh: [0.35, 0, 0.7], rEl: [-1.0, 0, 0],
+        lHip: [-1.3, 0, -0.85], lKn: [2.4, 0, 0],
+        rHip: [-1.3, 0, 0.85], rKn: [2.4, 0, 0] },
+      { name: "Star / Warrior",
+        torso: [0, 0, 0], head: [0, 0, 0],
+        lSh: [0, 0, -1.7], lEl: [0, 0, 0],
+        rSh: [0, 0, 1.7], rEl: [0, 0, 0],
+        lHip: [0, 0, -0.5], lKn: [0.12, 0, 0],
+        rHip: [0, 0, 0.5], rKn: [0.12, 0, 0] },
+      { name: "Tree",
+        torso: [0, 0, 0], head: [-0.1, 0, 0],
+        lSh: [0, 0, -2.95], lEl: [-0.25, 0, 0],
+        rSh: [0, 0, 2.95], rEl: [-0.25, 0, 0],
+        lHip: [0, 0, -0.12], lKn: [0.15, 0, 0],
+        rHip: [-0.55, 0, 1.15], rKn: [2.5, 0, 0] },
+      { name: "Cobra",
+        torso: [-0.55, 0, 0], head: [-0.5, 0, 0],
+        lSh: [2.2, 0, -0.3], lEl: [-0.2, 0, 0],
+        rSh: [2.2, 0, 0.3], rEl: [-0.2, 0, 0],
+        lHip: [0.25, 0, -0.15], lKn: [0.1, 0, 0],
+        rHip: [0.25, 0, 0.15], rKn: [0.1, 0, 0] },
+      { name: "Namaste",
+        torso: [0.1, 0, 0], head: [0.06, 0, 0],
+        lSh: [0.6, 0, -1.0], lEl: [-1.7, 0, 0.3],
+        rSh: [0.6, 0, 1.0], rEl: [-1.7, 0, -0.3],
+        lHip: [-0.05, 0, -0.1], lKn: [0.1, 0, 0],
+        rHip: [-0.05, 0, 0.1], rKn: [0.1, 0, 0] },
+    ];
+    const POSE_JOINTS = ["torso", "head", "lSh", "lEl", "rSh", "rEl", "lHip", "lKn", "rHip", "rKn"];
+    const POSE_HOLD = 2.6;   // seconds to hold each asana
+    const POSE_BLEND = 1.3;  // seconds to flow into the next
+    const POSE_CYCLE = POSE_HOLD + POSE_BLEND;
+    const lerp = (a, b, k) => a + (b - a) * k;
+    const smooth = (k) => (k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k));
+
     function Leprechaun() {
       const group = useRef();
-      const arm = useRef();
-      const legs = useRef();
       const farts = useRef([]);
+      // Articulated joints, driven each frame toward the current yoga pose.
+      const J = {
+        torso: useRef(), head: useRef(),
+        lSh: useRef(), lEl: useRef(), rSh: useRef(), rEl: useRef(),
+        lHip: useRef(), lKn: useRef(), rHip: useRef(), rKn: useRef(),
+      };
       // Timestamp (in clock seconds) when the current jump began; null when grounded.
       const jumpStart = useRef(null);
 
@@ -307,19 +362,14 @@
 
         // Parabolic jump arc: 0 -> 1 -> 0 over JUMP_DURATION.
         let jumpY = 0;      // extra vertical hop on top of the flight
-        let p = -1;         // progress through the jump, 0..1 (-1 when grounded)
         if (typeof jumpStart.current === "number") {
-          p = (t - jumpStart.current) / JUMP_DURATION;
+          const p = (t - jumpStart.current) / JUMP_DURATION;
           if (p >= 1) {
             jumpStart.current = null;
-            p = -1;
           } else {
             jumpY = Math.sin(p * Math.PI) * JUMP_HEIGHT;
           }
         }
-
-        // Flap the legs/arm a touch harder during a hop.
-        const tuck = p >= 0 ? Math.sin(p * Math.PI) : 0;
 
         if (group.current) {
           // Circle the meadow, propelled forever by his own exhaust.
@@ -331,18 +381,33 @@
           // Face the direction of travel (tangent to the circle)...
           const vx = -Math.sin(ang), vz = Math.cos(ang);
           group.current.rotation.y = Math.atan2(vx, vz);
-          // ...banking into the turn with a jaunty nose-up flying pose.
-          group.current.rotation.z = 0.22 + Math.sin(t * 6) * 0.05;
-          group.current.rotation.x = -0.28;
+          // ...serenely upright, with a gentle meditative sway.
+          group.current.rotation.z = Math.sin(t * 1.3) * 0.06;
+          group.current.rotation.x = Math.sin(t * 0.9) * 0.05;
           group.current.scale.set(0.9, 0.9, 0.9);
         }
-        if (legs.current) {
-          // legs trail behind, kicking with the thrust
-          legs.current.rotation.x = 0.6 + Math.sin(t * 8) * 0.25 + tuck * 0.4;
-        }
-        if (arm.current) {
-          // the pointing arm flails happily in the wind
-          arm.current.rotation.z = -0.6 + Math.sin(t * 9) * 0.3 - tuck * 0.7;
+
+        // Flow between yoga poses: hold one asana, then ease into the next.
+        const total = YOGA_POSES.length * POSE_CYCLE;
+        const tt = ((t % total) + total) % total;
+        const idx = Math.floor(tt / POSE_CYCLE);
+        const nxt = (idx + 1) % YOGA_POSES.length;
+        const local = tt - idx * POSE_CYCLE;
+        const k = smooth(local <= POSE_HOLD ? 0 : (local - POSE_HOLD) / POSE_BLEND);
+        const poseA = YOGA_POSES[idx];
+        const poseB = YOGA_POSES[nxt];
+        const breathe = Math.sin(t * 2) * 0.02; // subtle breathing on the spine
+        for (let j = 0; j < POSE_JOINTS.length; j++) {
+          const key = POSE_JOINTS[j];
+          const ref = J[key].current;
+          if (!ref) continue;
+          const a = poseA[key], b = poseB[key];
+          const bx = key === "torso" ? breathe : 0;
+          ref.rotation.set(
+            lerp(a[0], b[0], k) + bx,
+            lerp(a[1], b[1], k),
+            lerp(a[2], b[2], k)
+          );
         }
 
         // Fart exhaust: each puff shoots out his backside (local -Z), spreading,
@@ -350,24 +415,65 @@
         for (let i = 0; i < puffs.length; i++) {
           const m = farts.current[i];
           if (!m) continue;
-          const local = (t * 1.5 + puffs[i].offset) % 1; // 0 (fresh) -> 1 (spent)
-          m.position.z = -0.55 - local * 3.0;
-          m.position.y = -0.5 - local * 0.5 + Math.sin((t + puffs[i].offset) * 9) * 0.05;
-          m.position.x = puffs[i].jitter * (0.08 + local * 0.55);
-          const s = 0.14 + local * 0.7;
+          const local2 = (t * 1.5 + puffs[i].offset) % 1; // 0 (fresh) -> 1 (spent)
+          m.position.z = -0.4 - local2 * 3.0;
+          m.position.y = -0.55 - local2 * 0.5 + Math.sin((t + puffs[i].offset) * 9) * 0.05;
+          m.position.x = puffs[i].jitter * (0.08 + local2 * 0.55);
+          const s = 0.14 + local2 * 0.7;
           m.scale.setScalar(s);
-          if (m.material) m.material.opacity = Math.max(0, 0.7 * (1 - local));
+          if (m.material) m.material.opacity = Math.max(0, 0.7 * (1 - local2));
         }
       });
 
+      // ---- Reusable limb builders (articulated, capsule-based) -------------
+      // A leg: hip pivot -> thigh -> knee pivot -> shin -> buckled shoe.
+      const leg = (side, hipRef, knRef) =>
+        h("group", { ref: hipRef, position: [0.15 * side, 0, 0] },
+          h("mesh", { position: [0, -0.2, 0] },
+            h("capsuleGeometry", { args: [0.1, 0.34, 6, 14] }),
+            h("meshStandardMaterial", { color: LEP.coatDark, roughness: 0.75 })),
+          h("group", { ref: knRef, position: [0, -0.42, 0] },
+            h("mesh", { position: [0, -0.18, 0] },
+              h("capsuleGeometry", { args: [0.085, 0.3, 6, 14] }),
+              h("meshStandardMaterial", { color: LEP.coatDark, roughness: 0.75 })),
+            // curled leather shoe
+            h("mesh", { position: [0, -0.4, 0.07] },
+              h("boxGeometry", { args: [0.19, 0.12, 0.34] }),
+              h("meshStandardMaterial", { color: LEP.shoe, roughness: 0.55, metalness: 0.1 })),
+            h("mesh", { position: [0, -0.37, 0.24] },
+              h("sphereGeometry", { args: [0.08, 12, 12] }),
+              h("meshStandardMaterial", { color: LEP.shoe, roughness: 0.55 })),
+            // little gold shoe buckle
+            h("mesh", { position: [0, -0.32, 0.13] },
+              h("boxGeometry", { args: [0.09, 0.07, 0.02] }),
+              h("meshStandardMaterial", { color: LEP.sole, metalness: 0.7, roughness: 0.25 }))));
+
+      // An arm: shoulder pivot -> upper arm -> elbow pivot -> forearm -> hand.
+      const armLimb = (side, shRef, elRef) =>
+        h("group", { ref: shRef, position: [0.3 * side, 0.55, 0] },
+          h("mesh", { position: [0, -0.16, 0] },
+            h("capsuleGeometry", { args: [0.075, 0.24, 6, 14] }),
+            h("meshStandardMaterial", { color: LEP.coat, roughness: 0.7 })),
+          h("group", { ref: elRef, position: [0, -0.32, 0] },
+            h("mesh", { position: [0, -0.15, 0] },
+              h("capsuleGeometry", { args: [0.06, 0.22, 6, 14] }),
+              h("meshStandardMaterial", { color: LEP.coat, roughness: 0.7 })),
+            // rolled cuff
+            h("mesh", { position: [0, -0.28, 0], rotation: [Math.PI / 2, 0, 0] },
+              h("torusGeometry", { args: [0.07, 0.025, 10, 18] }),
+              h("meshStandardMaterial", { color: LEP.coatDark, roughness: 0.7 })),
+            // hand
+            h("mesh", { position: [0, -0.36, 0] },
+              h("sphereGeometry", { args: [0.075, 14, 14] }),
+              h("meshStandardMaterial", { color: LEP.skinShade, roughness: 0.55 }))));
+
       return h(
         "group",
-        // stand him off to the left, turned slightly to face the diamond
         { ref: group, position: [-2.7, -0.55, 0.2], rotation: [0, 0.5, 0], scale: 0.9 },
 
         // fart exhaust plume streaming out his backside (positions animated above)
         ...puffs.map((puff, i) =>
-          h("mesh", { key: "fart" + i, ref: (el) => (farts.current[i] = el), position: [0, -0.5, -0.55] },
+          h("mesh", { key: "fart" + i, ref: (el) => (farts.current[i] = el), position: [0, -0.55, -0.4] },
             h("sphereGeometry", { args: [1, 12, 12] }),
             h("meshStandardMaterial", {
               color: puff.color,
@@ -379,81 +485,123 @@
               depthWrite: false,
             }))),
 
-        // legs + buckled shoes (grouped so they can tuck up mid-jump)
-        h("group", { ref: legs },
-          h("mesh", { position: [-0.16, -0.95, 0] },
-            h("cylinderGeometry", { args: [0.11, 0.11, 0.5, 12] }),
-            h("meshStandardMaterial", { color: LEP.hat, roughness: 0.8 })),
-          h("mesh", { position: [0.16, -0.95, 0] },
-            h("cylinderGeometry", { args: [0.11, 0.11, 0.5, 12] }),
-            h("meshStandardMaterial", { color: LEP.hat, roughness: 0.8 })),
-          h("mesh", { position: [-0.16, -1.24, 0.08] },
-            h("boxGeometry", { args: [0.2, 0.14, 0.34] }),
-            h("meshStandardMaterial", { color: "#000000", roughness: 0.7 })),
-          h("mesh", { position: [0.16, -1.24, 0.08] },
-            h("boxGeometry", { args: [0.2, 0.14, 0.34] }),
-            h("meshStandardMaterial", { color: "#000000", roughness: 0.7 }))),
+        // legs (hips pivot at the waist so they can fold into lotus, tree, etc.)
+        leg(-1, J.lHip, J.lKn),
+        leg(1, J.rHip, J.rKn),
 
-        // pot-bellied coat / body
-        h("mesh", { position: [0, -0.42, 0] },
-          h("sphereGeometry", { args: [0.42, 20, 20] }),
-          h("meshStandardMaterial", { color: LEP.coat, roughness: 0.65 })),
-        // belt + gold buckle
-        h("mesh", { position: [0, -0.5, 0.34], rotation: [Math.PI / 2, 0, 0] },
-          h("cylinderGeometry", { args: [0.14, 0.14, 0.1, 6] }),
-          h("meshStandardMaterial", { color: LEP.gold, metalness: 0.7, roughness: 0.25 })),
+        // ---- Torso group: bends at the waist, carries head + arms ----------
+        h("group", { ref: J.torso, position: [0, 0, 0] },
+          // rounded coat / belly (tapered capsule for a proper little pot-belly)
+          h("mesh", { position: [0, 0.16, 0] },
+            h("capsuleGeometry", { args: [0.32, 0.34, 10, 20] }),
+            h("meshStandardMaterial", { color: LEP.coat, roughness: 0.62 })),
+          // coat lapels / front panel
+          h("mesh", { position: [0, 0.16, 0.29] },
+            h("boxGeometry", { args: [0.16, 0.5, 0.04] }),
+            h("meshStandardMaterial", { color: LEP.coatDark, roughness: 0.62 })),
+          // gold coat buttons
+          ...[0.28, 0.12, -0.04].map((y, i) =>
+            h("mesh", { key: "btn" + i, position: [0, y, 0.33] },
+              h("sphereGeometry", { args: [0.028, 10, 10] }),
+              h("meshStandardMaterial", { color: LEP.gold, metalness: 0.75, roughness: 0.25 }))),
+          // belt + gold buckle
+          h("mesh", { position: [0, -0.08, 0], rotation: [Math.PI / 2, 0, 0] },
+            h("cylinderGeometry", { args: [0.33, 0.33, 0.1, 28, 1, true] }),
+            h("meshStandardMaterial", { color: LEP.band, roughness: 0.6, side: 2 })),
+          h("mesh", { position: [0, -0.08, 0.33] },
+            h("boxGeometry", { args: [0.14, 0.12, 0.03] }),
+            h("meshStandardMaterial", { color: LEP.gold, metalness: 0.7, roughness: 0.25 })),
 
-        // left arm resting on the belly
-        h("mesh", { position: [-0.42, -0.3, 0.05], rotation: [0, 0, 0.9] },
-          h("cylinderGeometry", { args: [0.08, 0.08, 0.5, 10] }),
-          h("meshStandardMaterial", { color: LEP.coat, roughness: 0.65 })),
+          // arms
+          armLimb(-1, J.lSh, J.lEl),
+          armLimb(1, J.rSh, J.rEl),
 
-        // right arm flung out toward the diamond (pivots at the shoulder)
-        h("group", { ref: arm, position: [0.34, -0.18, 0.1] },
-          h("mesh", { position: [0.3, 0, 0], rotation: [0, 0, Math.PI / 2] },
-            h("cylinderGeometry", { args: [0.08, 0.08, 0.62, 10] }),
-            h("meshStandardMaterial", { color: LEP.coat, roughness: 0.65 })),
-          // open hand presenting the gem
-          h("mesh", { position: [0.66, 0, 0] },
-            h("sphereGeometry", { args: [0.1, 12, 12] }),
-            h("meshStandardMaterial", { color: LEP.skin, roughness: 0.6 }))),
+          // ---- Head group ---------------------------------------------------
+          h("group", { ref: J.head, position: [0, 0.62, 0] },
+            // neck
+            h("mesh", { position: [0, -0.14, 0] },
+              h("cylinderGeometry", { args: [0.1, 0.12, 0.14, 14] }),
+              h("meshStandardMaterial", { color: LEP.skin, roughness: 0.55 })),
+            // head
+            h("mesh", { position: [0, 0.02, 0] },
+              h("sphereGeometry", { args: [0.26, 28, 28] }),
+              h("meshStandardMaterial", { color: LEP.skin, roughness: 0.55 })),
+            // ears
+            h("mesh", { position: [-0.25, 0.02, 0] },
+              h("sphereGeometry", { args: [0.055, 12, 12] }),
+              h("meshStandardMaterial", { color: LEP.skin, roughness: 0.55 })),
+            h("mesh", { position: [0.25, 0.02, 0] },
+              h("sphereGeometry", { args: [0.055, 12, 12] }),
+              h("meshStandardMaterial", { color: LEP.skin, roughness: 0.55 })),
+            // bulbous nose
+            h("mesh", { position: [0, -0.01, 0.26] },
+              h("sphereGeometry", { args: [0.06, 14, 14] }),
+              h("meshStandardMaterial", { color: LEP.skinShade, roughness: 0.5 })),
+            // rosy cheeks
+            h("mesh", { position: [-0.15, -0.04, 0.2] },
+              h("sphereGeometry", { args: [0.055, 12, 12] }),
+              h("meshStandardMaterial", { color: LEP.cheek, roughness: 0.65 })),
+            h("mesh", { position: [0.15, -0.04, 0.2] },
+              h("sphereGeometry", { args: [0.055, 12, 12] }),
+              h("meshStandardMaterial", { color: LEP.cheek, roughness: 0.65 })),
+            // eyes (white + pupil)
+            h("mesh", { position: [-0.1, 0.08, 0.23] },
+              h("sphereGeometry", { args: [0.045, 12, 12] }),
+              h("meshStandardMaterial", { color: "#f4f4f4", roughness: 0.4 })),
+            h("mesh", { position: [0.1, 0.08, 0.23] },
+              h("sphereGeometry", { args: [0.045, 12, 12] }),
+              h("meshStandardMaterial", { color: "#f4f4f4", roughness: 0.4 })),
+            h("mesh", { position: [-0.1, 0.08, 0.265] },
+              h("sphereGeometry", { args: [0.02, 8, 8] }),
+              h("meshStandardMaterial", { color: LEP.eye })),
+            h("mesh", { position: [0.1, 0.08, 0.265] },
+              h("sphereGeometry", { args: [0.02, 8, 8] }),
+              h("meshStandardMaterial", { color: LEP.eye })),
+            // bushy ginger eyebrows
+            h("mesh", { position: [-0.1, 0.15, 0.24], rotation: [0, 0, 0.2] },
+              h("boxGeometry", { args: [0.09, 0.03, 0.03] }),
+              h("meshStandardMaterial", { color: LEP.beard, roughness: 0.9 })),
+            h("mesh", { position: [0.1, 0.15, 0.24], rotation: [0, 0, -0.2] },
+              h("boxGeometry", { args: [0.09, 0.03, 0.03] }),
+              h("meshStandardMaterial", { color: LEP.beard, roughness: 0.9 })),
+            // sideburns / hair fringe under the hat
+            h("mesh", { position: [0, 0.2, -0.02] },
+              h("sphereGeometry", { args: [0.265, 20, 16, 0, Math.PI * 2, 0, Math.PI * 0.55] }),
+              h("meshStandardMaterial", { color: LEP.beard, roughness: 0.9 })),
+            // full ginger beard (rounded, framing the face)
+            h("mesh", { position: [0, -0.16, 0.12] },
+              h("sphereGeometry", { args: [0.22, 22, 22] }),
+              h("meshStandardMaterial", { color: LEP.beard, roughness: 0.92 })),
+            h("mesh", { position: [0, -0.24, 0.08], rotation: [Math.PI, 0, 0] },
+              h("coneGeometry", { args: [0.2, 0.28, 18] }),
+              h("meshStandardMaterial", { color: LEP.beard, roughness: 0.92 })),
+            // mustache
+            h("mesh", { position: [0, -0.06, 0.24] },
+              h("boxGeometry", { args: [0.18, 0.04, 0.05] }),
+              h("meshStandardMaterial", { color: LEP.beard, roughness: 0.92 })),
 
-        // head
-        h("mesh", { position: [0, 0.18, 0] },
-          h("sphereGeometry", { args: [0.28, 24, 24] }),
-          h("meshStandardMaterial", { color: LEP.skin, roughness: 0.6 })),
-        // rosy cheeks
-        h("mesh", { position: [-0.14, 0.12, 0.22] },
-          h("sphereGeometry", { args: [0.06, 10, 10] }),
-          h("meshStandardMaterial", { color: "#2b2b30", roughness: 0.7 })),
-        h("mesh", { position: [0.14, 0.12, 0.22] },
-          h("sphereGeometry", { args: [0.06, 10, 10] }),
-          h("meshStandardMaterial", { color: "#2b2b30", roughness: 0.7 })),
-        // eyes
-        h("mesh", { position: [-0.1, 0.24, 0.25] },
-          h("sphereGeometry", { args: [0.035, 8, 8] }),
-          h("meshStandardMaterial", { color: "#20242e" })),
-        h("mesh", { position: [0.1, 0.24, 0.25] },
-          h("sphereGeometry", { args: [0.035, 8, 8] }),
-          h("meshStandardMaterial", { color: "#20242e" })),
-        // ginger beard
-        h("mesh", { position: [0, 0.02, 0.16], rotation: [Math.PI, 0, 0] },
-          h("coneGeometry", { args: [0.26, 0.42, 20] }),
-          h("meshStandardMaterial", { color: LEP.beard, roughness: 0.85 })),
-
-        // top hat — brim, stack, band and buckle
-        h("mesh", { position: [0, 0.42, 0] },
-          h("cylinderGeometry", { args: [0.42, 0.42, 0.05, 24] }),
-          h("meshStandardMaterial", { color: LEP.hat, roughness: 0.7 })),
-        h("mesh", { position: [0, 0.64, 0] },
-          h("cylinderGeometry", { args: [0.27, 0.29, 0.42, 24] }),
-          h("meshStandardMaterial", { color: LEP.hat, roughness: 0.7 })),
-        h("mesh", { position: [0, 0.5, 0] },
-          h("cylinderGeometry", { args: [0.295, 0.305, 0.1, 24] }),
-          h("meshStandardMaterial", { color: LEP.band, roughness: 0.7 })),
-        h("mesh", { position: [0, 0.5, 0.29] },
-          h("boxGeometry", { args: [0.12, 0.09, 0.03] }),
-          h("meshStandardMaterial", { color: LEP.gold, metalness: 0.7, roughness: 0.25 }))
+            // top hat — brim, tapered stack, band and gold buckle
+            h("mesh", { position: [0, 0.27, 0] },
+              h("cylinderGeometry", { args: [0.4, 0.4, 0.05, 28] }),
+              h("meshStandardMaterial", { color: LEP.hat, roughness: 0.6 })),
+            h("mesh", { position: [0, 0.48, 0] },
+              h("cylinderGeometry", { args: [0.26, 0.29, 0.42, 28] }),
+              h("meshStandardMaterial", { color: LEP.hat, roughness: 0.6 })),
+            h("mesh", { position: [0, 0.32, 0] },
+              h("cylinderGeometry", { args: [0.3, 0.31, 0.1, 28] }),
+              h("meshStandardMaterial", { color: LEP.band, roughness: 0.7 })),
+            h("mesh", { position: [0, 0.32, 0.3] },
+              h("boxGeometry", { args: [0.12, 0.09, 0.03] }),
+              h("meshStandardMaterial", { color: LEP.gold, metalness: 0.7, roughness: 0.25 })),
+            // a lucky clover tucked in the hat band
+            ...[0, 1, 2, 3].map((i) => {
+              const a = (i / 4) * Math.PI * 2;
+              return h("mesh", { key: "clv" + i, position: [-0.28 + Math.cos(a) * 0.05, 0.34 + Math.sin(a) * 0.05, 0.26] },
+                h("sphereGeometry", { args: [0.035, 10, 10] }),
+                h("meshStandardMaterial", { color: "#3ad46a", roughness: 0.7, emissive: "#2fae53", emissiveIntensity: 0.15 }));
+            })
+          )
+        )
       );
     }
 
@@ -627,7 +775,7 @@
           outlineWidth: 0.01,
           outlineColor: "#0b0d17",
         },
-        "Larry flies in circles, propelled by his own farts"
+        "Larry flows through yoga poses in mid-air, propelled by his own farts"
       );
     }
 
@@ -689,7 +837,7 @@
         h(
           "div",
           { className: "hint" },
-          "Larry the leprechaun flies endless circles over his pot of gold, propelled by his own farts · send /jump to make him hop mid-flight · hover to make the gold glow · drag to orbit · scroll to zoom · click to freeze the spin"
+          "Larry the leprechaun does airborne yoga — flowing through lotus, warrior, tree, cobra & namaste — while circling his pot of gold, propelled by his own farts · send /jump to make him hop mid-flow · hover to make the gold glow · drag to orbit · scroll to zoom · click to freeze the spin"
         ),
         h(
           Canvas,
