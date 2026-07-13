@@ -226,12 +226,12 @@
     // ruddy face and ginger beard, a green coat, and one arm flung out toward
     // the diamond in a happy "ta-da!" gesture. He gives a gentle excited bob.
     const LEP = {
-      coat: "#1a7a3c",
-      hat: "#14532d",
-      band: "#0f3d21",
+      coat: "#111114",
+      hat: "#050506",
+      band: "#000000",
       gold: "#facc15",
-      skin: "#f5c9a6",
-      beard: "#e0742a",
+      skin: "#1a1a1e",
+      beard: "#2b2b30",
     };
 
     function Leprechaun() {
@@ -266,10 +266,10 @@
         // buckled shoes
         h("mesh", { position: [-0.16, -1.24, 0.08] },
           h("boxGeometry", { args: [0.2, 0.14, 0.34] }),
-          h("meshStandardMaterial", { color: "#3b2412", roughness: 0.7 })),
+          h("meshStandardMaterial", { color: "#000000", roughness: 0.7 })),
         h("mesh", { position: [0.16, -1.24, 0.08] },
           h("boxGeometry", { args: [0.2, 0.14, 0.34] }),
-          h("meshStandardMaterial", { color: "#3b2412", roughness: 0.7 })),
+          h("meshStandardMaterial", { color: "#000000", roughness: 0.7 })),
 
         // pot-bellied coat / body
         h("mesh", { position: [0, -0.42, 0] },
@@ -302,10 +302,10 @@
         // rosy cheeks
         h("mesh", { position: [-0.14, 0.12, 0.22] },
           h("sphereGeometry", { args: [0.06, 10, 10] }),
-          h("meshStandardMaterial", { color: "#f2a08a", roughness: 0.7 })),
+          h("meshStandardMaterial", { color: "#2b2b30", roughness: 0.7 })),
         h("mesh", { position: [0.14, 0.12, 0.22] },
           h("sphereGeometry", { args: [0.06, 10, 10] }),
-          h("meshStandardMaterial", { color: "#f2a08a", roughness: 0.7 })),
+          h("meshStandardMaterial", { color: "#2b2b30", roughness: 0.7 })),
         // eyes
         h("mesh", { position: [-0.1, 0.24, 0.25] },
           h("sphereGeometry", { args: [0.035, 8, 8] }),
