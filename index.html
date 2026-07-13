@@ -97,67 +97,57 @@
 
     const h = React.createElement;
 
-    // ---- Brilliant-cut diamond geometry -------------------------------------
-    // A classic gem silhouette built as a single faceted solid: a flat table
-    // on top, a shallow sloped crown down to the widest ring (the girdle), and
-    // a deep pointed pavilion below. Flat shading makes every facet catch the
-    // light independently so it reads as a cut diamond.
-    const FACETS = 8;                 // 8 sides -> chunky, jewel-like facets
-    function makeDiamondGeometry() {
-      const table = 0.55;             // radius of the flat top
-      const girdle = 1.0;             // radius of the widest ring
-      const tableY = 0.55;            // height of the table
-      const girdleY = 0.15;           // height of the girdle ring
-      const tipY = -1.05;             // the pointed bottom
+    // ---- Rainbow ------------------------------------------------------------
+    // Seven concentric half-torus arcs (red outermost -> violet innermost)
+    // standing upright in the XY plane so the arc faces the camera and sweeps
+    // over the pot below.
+    const RAINBOW_COLORS = [
+      "#ff4d4d", // red
+      "#ff9d3c", // orange
+      "#ffe14d", // yellow
+      "#4dff6a", // green
+      "#4db8ff", // blue
+      "#4d5bff", // indigo
+      "#a24dff", // violet
+    ];
 
-      const positions = [];
-      const pushTri = (a, b, c) => positions.push(...a, ...b, ...c);
-      const ring = (r, y) => {
-        const pts = [];
-        for (let i = 0; i < FACETS; i++) {
-          const ang = (i / FACETS) * Math.PI * 2;
-          pts.push([Math.cos(ang) * r, y, Math.sin(ang) * r]);
-        }
-        return pts;
-      };
-
-      const tableRing = ring(table, tableY);
-      const girdleRing = ring(girdle, girdleY);
-      const topCenter = [0, tableY, 0];
-      const tip = [0, tipY, 0];
-
-      for (let i = 0; i < FACETS; i++) {
-        const n = (i + 1) % FACETS;
-        // Flat table (fan from the centre).
-        pushTri(topCenter, tableRing[i], tableRing[n]);
-        // Crown facets: table edge down to the girdle (two triangles).
-        pushTri(tableRing[i], girdleRing[i], girdleRing[n]);
-        pushTri(tableRing[i], girdleRing[n], tableRing[n]);
-        // Pavilion facets: girdle down to the single point.
-        pushTri(girdleRing[i], tip, girdleRing[n]);
-      }
-      return new Float32Array(positions);
+    function Rainbow() {
+      return h(
+        "group",
+        { position: [0, 0.2, -1.2] },
+        RAINBOW_COLORS.map((c, i) =>
+          h(
+            "mesh",
+            { key: i },
+            // args: [radius, tube, radialSegments, tubularSegments, arc]
+            // arc = Math.PI -> only the upper half of the ring.
+            h("torusGeometry", { args: [2.6 - i * 0.16, 0.07, 16, 96, Math.PI] }),
+            h("meshStandardMaterial", {
+              color: c,
+              emissive: c,
+              emissiveIntensity: 0.45,
+              roughness: 0.6,
+              metalness: 0.0,
+            })
+          )
+        )
+      );
     }
 
-    // Hover swaps the diamond's tint from icy cyan to a warm rose.
-    const DIAMOND_COLORS = {
-      cool: "#a5f3fc",  // icy cyan
-      warm: "#fbcfe8",  // warm rose
+    // ---- Pot of gold --------------------------------------------------------
+    // A little cast-iron cauldron on three feet, brimming with a heaped pile of
+    // glinting gold nuggets. It slowly turns; hover to make the gold glow,
+    // click to freeze the spin.
+    const POT = {
+      iron: "#2b2b30",
+      ironDark: "#141417",
+      golds: ["#facc15", "#eab308", "#fde047"],
     };
 
-    // A slowly turning, faceted diamond. Hover to warm its tint, click to
-    // freeze its spin mid-sparkle.
-    function Diamond() {
+    function PotOfGold() {
       const group = useRef();
-      const geomRef = useRef();
       const [hovered, setHovered] = useState(false);
       const [spinning, setSpinning] = useState(true);
-
-      const vertices = React.useMemo(makeDiamondGeometry, []);
-
-      React.useEffect(() => {
-        if (geomRef.current) geomRef.current.computeVertexNormals();
-      }, []);
 
       useFrame((_, delta) => {
         if (spinning && group.current) {
@@ -165,41 +155,73 @@
         }
       });
 
+      // A deterministic little heap of gold nuggets sitting in the pot.
+      const nuggets = React.useMemo(() => {
+        let seed = 7;
+        const rand = () => {
+          seed = (seed * 9301 + 49297) % 233280;
+          return seed / 233280;
+        };
+        const arr = [];
+        for (let i = 0; i < 28; i++) {
+          const a = rand() * Math.PI * 2;
+          const r = rand() * 0.55;
+          arr.push({
+            pos: [Math.cos(a) * r, 0.34 + rand() * 0.16, Math.sin(a) * r],
+            s: 0.09 + rand() * 0.07,
+            color: POT.golds[i % POT.golds.length],
+            rot: [rand() * Math.PI, rand() * Math.PI, rand() * Math.PI],
+          });
+        }
+        return arr;
+      }, []);
+
       return h(
         "group",
         {
           ref: group,
-          position: [0, -0.1, 0],
+          position: [0, -0.35, 0],
           onPointerOver: () => setHovered(true),
           onPointerOut: () => setHovered(false),
           onClick: () => setSpinning((v) => !v),
         },
-        h(
-          "mesh",
-          null,
-          h(
-            "bufferGeometry",
-            { ref: geomRef },
-            h("bufferAttribute", {
-              attach: "attributes-position",
-              array: vertices,
-              count: vertices.length / 3,
-              itemSize: 3,
-            })
-          ),
-          h("meshStandardMaterial", {
-            color: hovered ? DIAMOND_COLORS.warm : DIAMOND_COLORS.cool,
-            metalness: 0.6,
-            roughness: 0.08,
-            flatShading: true,
-            emissive: hovered ? DIAMOND_COLORS.warm : DIAMOND_COLORS.cool,
-            emissiveIntensity: 0.12,
-          })
-        )
+
+        // cauldron body — wider at the mouth, tapering down
+        h("mesh", { position: [0, 0.1, 0] },
+          h("cylinderGeometry", { args: [0.75, 0.52, 0.7, 32, 1, true] }),
+          h("meshStandardMaterial", { color: POT.iron, metalness: 0.55, roughness: 0.4, side: 2 })),
+        // rounded belly / bottom
+        h("mesh", { position: [0, -0.18, 0] },
+          h("sphereGeometry", { args: [0.52, 28, 24] }),
+          h("meshStandardMaterial", { color: POT.iron, metalness: 0.55, roughness: 0.4 })),
+        // thick rolled rim
+        h("mesh", { position: [0, 0.44, 0], rotation: [Math.PI / 2, 0, 0] },
+          h("torusGeometry", { args: [0.75, 0.09, 16, 32] }),
+          h("meshStandardMaterial", { color: POT.ironDark, metalness: 0.6, roughness: 0.35 })),
+
+        // three stubby feet
+        ...[0, 1, 2].map((i) => {
+          const a = (i / 3) * Math.PI * 2 + 0.5;
+          return h("mesh", { key: "leg" + i, position: [Math.cos(a) * 0.4, -0.52, Math.sin(a) * 0.4] },
+            h("sphereGeometry", { args: [0.12, 14, 14] }),
+            h("meshStandardMaterial", { color: POT.ironDark, metalness: 0.55, roughness: 0.4 }));
+        }),
+
+        // heaped gold nuggets
+        ...nuggets.map((n, i) =>
+          h("mesh", { key: "gold" + i, position: n.pos, rotation: n.rot },
+            h("sphereGeometry", { args: [n.s, 14, 14] }),
+            h("meshStandardMaterial", {
+              color: n.color,
+              metalness: 0.95,
+              roughness: 0.15,
+              emissive: "#fde047",
+              emissiveIntensity: hovered ? 0.35 : 0.08,
+            })))
       );
     }
 
-    // ---- A little leprechaun cheering the diamond on ------------------------
+    // ---- A little leprechaun cheering on his pot of gold --------------------
     // Built entirely from primitives: a green top hat with a gold buckle, a
     // ruddy face and ginger beard, a green coat, and one arm flung out toward
     // the diamond in a happy "ta-da!" gesture. He gives a gentle excited bob.
@@ -332,7 +354,7 @@
       );
     }
 
-    // A small caption floating just to the right of the diamond.
+    // A small caption floating just to the right of the pot of gold.
     function ArmMessage() {
       return h(
         Text,
@@ -361,7 +383,8 @@
         h(Stars, { radius: 80, depth: 40, count: 3000, factor: 4, fade: true, speed: 1 }),
         h(HelloText, null),
         h(ArmMessage, null),
-        h(Diamond, null),
+        h(Rainbow, null),
+        h(PotOfGold, null),
         h(Leprechaun, null),
         h(OrbitControls, { enablePan: false, minDistance: 3, maxDistance: 12 })
       );
@@ -381,7 +404,7 @@
         h(
           "div",
           { className: "hint" },
-          "A leprechaun shows off his faceted diamond · hover to warm its tint · drag to orbit · scroll to zoom · click to freeze the spin"
+          "A leprechaun shows off his pot of gold under a rainbow · hover to make the gold glow · drag to orbit · scroll to zoom · click to freeze the spin"
         ),
         h(
           Canvas,
