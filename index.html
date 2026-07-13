@@ -327,8 +327,27 @@
             outlineWidth: 0.02,
             outlineColor: "#0b0d17",
           },
-          "Hello, World!"
+          "Larry the Leprechaun"
         )
+      );
+    }
+
+    // A small caption floating just to the right of the diamond.
+    function ArmMessage() {
+      return h(
+        Text,
+        {
+          position: [1.7, 0.1, 0],
+          fontSize: 0.22,
+          color: "#a5f3fc",
+          anchorX: "left",
+          anchorY: "middle",
+          maxWidth: 2.2,
+          lineHeight: 1.15,
+          outlineWidth: 0.01,
+          outlineColor: "#0b0d17",
+        },
+        "Larry lost his arm in the war"
       );
     }
 
@@ -341,6 +360,7 @@
         h("pointLight", { position: [-5, -3, -5], intensity: 0.5, color: "#7dd3fc" }),
         h(Stars, { radius: 80, depth: 40, count: 3000, factor: 4, fade: true, speed: 1 }),
         h(HelloText, null),
+        h(ArmMessage, null),
         h(Diamond, null),
         h(Leprechaun, null),
         h(OrbitControls, { enablePan: false, minDistance: 3, maxDistance: 12 })
