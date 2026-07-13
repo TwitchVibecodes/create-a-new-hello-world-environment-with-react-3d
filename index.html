@@ -199,6 +199,119 @@
       );
     }
 
+    // ---- A little leprechaun cheering the diamond on ------------------------
+    // Built entirely from primitives: a green top hat with a gold buckle, a
+    // ruddy face and ginger beard, a green coat, and one arm flung out toward
+    // the diamond in a happy "ta-da!" gesture. He gives a gentle excited bob.
+    const LEP = {
+      coat: "#1a7a3c",
+      hat: "#14532d",
+      band: "#0f3d21",
+      gold: "#facc15",
+      skin: "#f5c9a6",
+      beard: "#e0742a",
+    };
+
+    function Leprechaun() {
+      const group = useRef();
+      const arm = useRef();
+
+      useFrame((state) => {
+        const t = state.clock.elapsedTime;
+        if (group.current) {
+          // happy little bob + slight sway toward the diamond
+          group.current.position.y = -0.55 + Math.sin(t * 3) * 0.06;
+          group.current.rotation.z = Math.sin(t * 3) * 0.03;
+        }
+        if (arm.current) {
+          // the pointing arm waves excitedly at the gem
+          arm.current.rotation.z = -0.6 + Math.sin(t * 6) * 0.18;
+        }
+      });
+
+      return h(
+        "group",
+        // stand him off to the left, turned slightly to face the diamond
+        { ref: group, position: [-2.7, -0.55, 0.2], rotation: [0, 0.5, 0], scale: 0.9 },
+
+        // legs
+        h("mesh", { position: [-0.16, -0.95, 0] },
+          h("cylinderGeometry", { args: [0.11, 0.11, 0.5, 12] }),
+          h("meshStandardMaterial", { color: LEP.hat, roughness: 0.8 })),
+        h("mesh", { position: [0.16, -0.95, 0] },
+          h("cylinderGeometry", { args: [0.11, 0.11, 0.5, 12] }),
+          h("meshStandardMaterial", { color: LEP.hat, roughness: 0.8 })),
+        // buckled shoes
+        h("mesh", { position: [-0.16, -1.24, 0.08] },
+          h("boxGeometry", { args: [0.2, 0.14, 0.34] }),
+          h("meshStandardMaterial", { color: "#3b2412", roughness: 0.7 })),
+        h("mesh", { position: [0.16, -1.24, 0.08] },
+          h("boxGeometry", { args: [0.2, 0.14, 0.34] }),
+          h("meshStandardMaterial", { color: "#3b2412", roughness: 0.7 })),
+
+        // pot-bellied coat / body
+        h("mesh", { position: [0, -0.42, 0] },
+          h("sphereGeometry", { args: [0.42, 20, 20] }),
+          h("meshStandardMaterial", { color: LEP.coat, roughness: 0.65 })),
+        // belt + gold buckle
+        h("mesh", { position: [0, -0.5, 0.34], rotation: [Math.PI / 2, 0, 0] },
+          h("cylinderGeometry", { args: [0.14, 0.14, 0.1, 6] }),
+          h("meshStandardMaterial", { color: LEP.gold, metalness: 0.7, roughness: 0.25 })),
+
+        // left arm resting on the belly
+        h("mesh", { position: [-0.42, -0.3, 0.05], rotation: [0, 0, 0.9] },
+          h("cylinderGeometry", { args: [0.08, 0.08, 0.5, 10] }),
+          h("meshStandardMaterial", { color: LEP.coat, roughness: 0.65 })),
+
+        // right arm flung out toward the diamond (pivots at the shoulder)
+        h("group", { ref: arm, position: [0.34, -0.18, 0.1] },
+          h("mesh", { position: [0.3, 0, 0], rotation: [0, 0, Math.PI / 2] },
+            h("cylinderGeometry", { args: [0.08, 0.08, 0.62, 10] }),
+            h("meshStandardMaterial", { color: LEP.coat, roughness: 0.65 })),
+          // open hand presenting the gem
+          h("mesh", { position: [0.66, 0, 0] },
+            h("sphereGeometry", { args: [0.1, 12, 12] }),
+            h("meshStandardMaterial", { color: LEP.skin, roughness: 0.6 }))),
+
+        // head
+        h("mesh", { position: [0, 0.18, 0] },
+          h("sphereGeometry", { args: [0.28, 24, 24] }),
+          h("meshStandardMaterial", { color: LEP.skin, roughness: 0.6 })),
+        // rosy cheeks
+        h("mesh", { position: [-0.14, 0.12, 0.22] },
+          h("sphereGeometry", { args: [0.06, 10, 10] }),
+          h("meshStandardMaterial", { color: "#f2a08a", roughness: 0.7 })),
+        h("mesh", { position: [0.14, 0.12, 0.22] },
+          h("sphereGeometry", { args: [0.06, 10, 10] }),
+          h("meshStandardMaterial", { color: "#f2a08a", roughness: 0.7 })),
+        // eyes
+        h("mesh", { position: [-0.1, 0.24, 0.25] },
+          h("sphereGeometry", { args: [0.035, 8, 8] }),
+          h("meshStandardMaterial", { color: "#20242e" })),
+        h("mesh", { position: [0.1, 0.24, 0.25] },
+          h("sphereGeometry", { args: [0.035, 8, 8] }),
+          h("meshStandardMaterial", { color: "#20242e" })),
+        // ginger beard
+        h("mesh", { position: [0, 0.02, 0.16], rotation: [Math.PI, 0, 0] },
+          h("coneGeometry", { args: [0.26, 0.42, 20] }),
+          h("meshStandardMaterial", { color: LEP.beard, roughness: 0.85 })),
+
+        // top hat — brim, stack, band and buckle
+        h("mesh", { position: [0, 0.42, 0] },
+          h("cylinderGeometry", { args: [0.42, 0.42, 0.05, 24] }),
+          h("meshStandardMaterial", { color: LEP.hat, roughness: 0.7 })),
+        h("mesh", { position: [0, 0.64, 0] },
+          h("cylinderGeometry", { args: [0.27, 0.29, 0.42, 24] }),
+          h("meshStandardMaterial", { color: LEP.hat, roughness: 0.7 })),
+        h("mesh", { position: [0, 0.5, 0] },
+          h("cylinderGeometry", { args: [0.295, 0.305, 0.1, 24] }),
+          h("meshStandardMaterial", { color: LEP.band, roughness: 0.7 })),
+        h("mesh", { position: [0, 0.5, 0.29] },
+          h("boxGeometry", { args: [0.12, 0.09, 0.03] }),
+          h("meshStandardMaterial", { color: LEP.gold, metalness: 0.7, roughness: 0.25 }))
+      );
+    }
+
     function HelloText() {
       return h(
         Float,
@@ -229,6 +342,7 @@
         h(Stars, { radius: 80, depth: 40, count: 3000, factor: 4, fade: true, speed: 1 }),
         h(HelloText, null),
         h(Diamond, null),
+        h(Leprechaun, null),
         h(OrbitControls, { enablePan: false, minDistance: 3, maxDistance: 12 })
       );
     }
@@ -247,7 +361,7 @@
         h(
           "div",
           { className: "hint" },
-          "A faceted diamond · hover to warm its tint · drag to orbit · scroll to zoom · click to freeze the spin"
+          "A leprechaun shows off his faceted diamond · hover to warm its tint · drag to orbit · scroll to zoom · click to freeze the spin"
         ),
         h(
           Canvas,
