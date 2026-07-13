@@ -97,190 +97,103 @@
 
     const h = React.createElement;
 
-    // ---- 4D tesseract (hypercube) geometry ----------------------------------
-    // 16 vertices: every combination of (±1, ±1, ±1, ±1).
-    const TESSERACT_VERTICES = [];
-    for (let i = 0; i < 16; i++) {
-      TESSERACT_VERTICES.push([
-        (i & 1) ? 1 : -1,
-        (i & 2) ? 1 : -1,
-        (i & 4) ? 1 : -1,
-        (i & 8) ? 1 : -1,
-      ]);
-    }
-    // 32 edges: pairs of vertices that differ in exactly one coordinate.
-    const TESSERACT_EDGES = [];
-    for (let a = 0; a < 16; a++) {
-      for (let b = a + 1; b < 16; b++) {
-        const diff = a ^ b;
-        if (diff && (diff & (diff - 1)) === 0) TESSERACT_EDGES.push([a, b]);
+    // ---- Brilliant-cut diamond geometry -------------------------------------
+    // A classic gem silhouette built as a single faceted solid: a flat table
+    // on top, a shallow sloped crown down to the widest ring (the girdle), and
+    // a deep pointed pavilion below. Flat shading makes every facet catch the
+    // light independently so it reads as a cut diamond.
+    const FACETS = 8;                 // 8 sides -> chunky, jewel-like facets
+    function makeDiamondGeometry() {
+      const table = 0.55;             // radius of the flat top
+      const girdle = 1.0;             // radius of the widest ring
+      const tableY = 0.55;            // height of the table
+      const girdleY = 0.15;           // height of the girdle ring
+      const tipY = -1.05;             // the pointed bottom
+
+      const positions = [];
+      const pushTri = (a, b, c) => positions.push(...a, ...b, ...c);
+      const ring = (r, y) => {
+        const pts = [];
+        for (let i = 0; i < FACETS; i++) {
+          const ang = (i / FACETS) * Math.PI * 2;
+          pts.push([Math.cos(ang) * r, y, Math.sin(ang) * r]);
+        }
+        return pts;
+      };
+
+      const tableRing = ring(table, tableY);
+      const girdleRing = ring(girdle, girdleY);
+      const topCenter = [0, tableY, 0];
+      const tip = [0, tipY, 0];
+
+      for (let i = 0; i < FACETS; i++) {
+        const n = (i + 1) % FACETS;
+        // Flat table (fan from the centre).
+        pushTri(topCenter, tableRing[i], tableRing[n]);
+        // Crown facets: table edge down to the girdle (two triangles).
+        pushTri(tableRing[i], girdleRing[i], girdleRing[n]);
+        pushTri(tableRing[i], girdleRing[n], tableRing[n]);
+        // Pavilion facets: girdle down to the single point.
+        pushTri(girdleRing[i], tip, girdleRing[n]);
       }
+      return new Float32Array(positions);
     }
 
-    // Rotate a 4D point in the given plane by `angle`.
-    function rotate4d(p, i, j, angle) {
-      const c = Math.cos(angle);
-      const s = Math.sin(angle);
-      const vi = p[i];
-      const vj = p[j];
-      p[i] = vi * c - vj * s;
-      p[j] = vi * s + vj * c;
-    }
-
-    // Two-endpoint gradient used to paint every edge/vertex by its live 4th-
-    // dimension (w) coordinate. As the hypercube rotates through the XW plane
-    // the *same* eight vertices sweep from far-in-w to near-in-w, so a cube
-    // that starts life as the tiny inner cube glow-shifts and swells until it
-    // becomes the big outer cube — and vice versa. Colour makes the otherwise
-    // invisible 4th axis directly readable.
-    const PALETTE = {
-      // [innerColor (low w, far), outerColor (high w, near)]
-      cool: [[55, 48, 163], [34, 211, 238]],   // indigo  -> cyan
-      warm: [[124, 58, 237], [245, 158, 11]],  // violet  -> amber
+    // Hover swaps the diamond's tint from icy cyan to a warm rose.
+    const DIAMOND_COLORS = {
+      cool: "#a5f3fc",  // icy cyan
+      warm: "#fbcfe8",  // warm rose
     };
 
-    // Write an RGB colour for a given w into out[o..o+2].
-    function paintByW(w, ramp, out, o) {
-      // w spans roughly [-sqrt2, +sqrt2] after a 4D rotation.
-      let t = (w + 1.414) / 2.828;
-      t = t < 0 ? 0 : t > 1 ? 1 : t;
-      // ease so the inner/outer extremes read stronger
-      const e = t * t * (3 - 2 * t);
-      const a = ramp[0];
-      const b = ramp[1];
-      out[o] = (a[0] + (b[0] - a[0]) * e) / 255;
-      out[o + 1] = (a[1] + (b[1] - a[1]) * e) / 255;
-      out[o + 2] = (a[2] + (b[2] - a[2]) * e) / 255;
-    }
-
-    // A tesseract whose signature XW rotation turns it inside-out: the inner
-    // cube inflates outward while the outer cube collapses through the middle,
-    // over and over. Colour encodes the hidden w axis. Hover to warm the
-    // palette, click to freeze the inversion mid-turn.
-    function Tesseract() {
+    // A slowly turning, faceted diamond. Hover to warm its tint, click to
+    // freeze its spin mid-sparkle.
+    function Diamond() {
       const group = useRef();
-      const edgesRef = useRef();
-      const vertsRef = useRef();
+      const geomRef = useRef();
       const [hovered, setHovered] = useState(false);
-      const [folding, setFolding] = useState(true);
-      const t = useRef(0);
+      const [spinning, setSpinning] = useState(true);
 
-      // Reusable buffers: 32 edges * 2 endpoints * 3 components.
-      const edgePositions = React.useMemo(() => new Float32Array(32 * 2 * 3), []);
-      const edgeColors = React.useMemo(() => new Float32Array(32 * 2 * 3), []);
-      const vertPositions = React.useMemo(() => new Float32Array(16 * 3), []);
-      const vertColors = React.useMemo(() => new Float32Array(16 * 3), []);
+      const vertices = React.useMemo(makeDiamondGeometry, []);
+
+      React.useEffect(() => {
+        if (geomRef.current) geomRef.current.computeVertexNormals();
+      }, []);
 
       useFrame((_, delta) => {
-        if (folding) t.current += delta;
-        const tt = t.current;
-        const ramp = hovered ? PALETTE.warm : PALETTE.cool;
-
-        // The XW rotation is the star of the show: it swaps each vertex's
-        // depth-in-w, driving the inner<->outer cube inversion. A slow ZW
-        // rotation adds a little organic wobble without muddying the effect.
-        const projected = TESSERACT_VERTICES.map((v) => {
-          const p = v.slice();
-          rotate4d(p, 0, 3, tt * 0.6);        // XW plane — the inversion
-          rotate4d(p, 2, 3, tt * 0.16);       // gentle ZW for depth
-          // Perspective projection from 4D to 3D (divide by distance in w):
-          // higher w -> nearer -> larger (outer), lower w -> smaller (inner).
-          const distance = 2.4;
-          const s = (1 / (distance - p[3])) * 2.6;
-          return [p[0] * s, p[1] * s, p[2] * s, p[3]];
-        });
-
-        // Fill vertex points + colours (coloured by their live w).
-        for (let i = 0; i < 16; i++) {
-          vertPositions[i * 3] = projected[i][0];
-          vertPositions[i * 3 + 1] = projected[i][1];
-          vertPositions[i * 3 + 2] = projected[i][2];
-          paintByW(projected[i][3], ramp, vertColors, i * 3);
+        if (spinning && group.current) {
+          group.current.rotation.y += delta * 0.5;
         }
-        // Fill edge line segments + per-endpoint colours.
-        for (let e = 0; e < TESSERACT_EDGES.length; e++) {
-          const [a, b] = TESSERACT_EDGES[e];
-          const o = e * 6;
-          edgePositions[o] = projected[a][0];
-          edgePositions[o + 1] = projected[a][1];
-          edgePositions[o + 2] = projected[a][2];
-          edgePositions[o + 3] = projected[b][0];
-          edgePositions[o + 4] = projected[b][1];
-          edgePositions[o + 5] = projected[b][2];
-          paintByW(projected[a][3], ramp, edgeColors, o);
-          paintByW(projected[b][3], ramp, edgeColors, o + 3);
-        }
-
-        if (edgesRef.current) {
-          edgesRef.current.attributes.position.needsUpdate = true;
-          edgesRef.current.attributes.color.needsUpdate = true;
-        }
-        if (vertsRef.current) {
-          vertsRef.current.attributes.position.needsUpdate = true;
-          vertsRef.current.attributes.color.needsUpdate = true;
-        }
-        if (group.current) group.current.rotation.y += delta * 0.12;
       });
 
       return h(
         "group",
         {
           ref: group,
-          position: [0, -0.2, 0],
+          position: [0, -0.1, 0],
           onPointerOver: () => setHovered(true),
           onPointerOut: () => setHovered(false),
-          onClick: () => setFolding((v) => !v),
+          onClick: () => setSpinning((v) => !v),
         },
-        // Edges (the inverting wireframe), coloured by 4D depth.
         h(
-          "lineSegments",
+          "mesh",
           null,
           h(
             "bufferGeometry",
-            { ref: edgesRef },
+            { ref: geomRef },
             h("bufferAttribute", {
               attach: "attributes-position",
-              array: edgePositions,
-              count: 32 * 2,
-              itemSize: 3,
-            }),
-            h("bufferAttribute", {
-              attach: "attributes-color",
-              array: edgeColors,
-              count: 32 * 2,
+              array: vertices,
+              count: vertices.length / 3,
               itemSize: 3,
             })
           ),
-          h("lineBasicMaterial", {
-            vertexColors: true,
-            transparent: true,
-            opacity: 0.95,
-          })
-        ),
-        // Glowing vertices, also coloured by 4D depth.
-        h(
-          "points",
-          null,
-          h(
-            "bufferGeometry",
-            { ref: vertsRef },
-            h("bufferAttribute", {
-              attach: "attributes-position",
-              array: vertPositions,
-              count: 16,
-              itemSize: 3,
-            }),
-            h("bufferAttribute", {
-              attach: "attributes-color",
-              array: vertColors,
-              count: 16,
-              itemSize: 3,
-            })
-          ),
-          h("pointsMaterial", {
-            vertexColors: true,
-            size: 0.17,
-            sizeAttenuation: true,
+          h("meshStandardMaterial", {
+            color: hovered ? DIAMOND_COLORS.warm : DIAMOND_COLORS.cool,
+            metalness: 0.6,
+            roughness: 0.08,
+            flatShading: true,
+            emissive: hovered ? DIAMOND_COLORS.warm : DIAMOND_COLORS.cool,
+            emissiveIntensity: 0.12,
           })
         )
       );
@@ -315,7 +228,7 @@
         h("pointLight", { position: [-5, -3, -5], intensity: 0.5, color: "#7dd3fc" }),
         h(Stars, { radius: 80, depth: 40, count: 3000, factor: 4, fade: true, speed: 1 }),
         h(HelloText, null),
-        h(Tesseract, null),
+        h(Diamond, null),
         h(OrbitControls, { enablePan: false, minDistance: 3, maxDistance: 12 })
       );
     }
@@ -334,7 +247,7 @@
         h(
           "div",
           { className: "hint" },
-          "Watch the inner cube turn inside-out into the outer cube · colour = the 4th dimension · drag to orbit · scroll to zoom · click to freeze"
+          "A faceted diamond · hover to warm its tint · drag to orbit · scroll to zoom · click to freeze the spin"
         ),
         h(
           Canvas,
