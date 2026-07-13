@@ -260,6 +260,7 @@
     function Leprechaun() {
       const group = useRef();
       const arm = useRef();
+      const legs = useRef();
       // Timestamp (in clock seconds) when the current jump began; null when grounded.
       const jumpStart = useRef(null);
 
@@ -270,8 +271,8 @@
         return () => window.removeEventListener("larry-jump", onJump);
       }, []);
 
-      const JUMP_DURATION = 0.75; // seconds
-      const JUMP_HEIGHT = 1.4;    // world units at the top of the arc
+      const JUMP_DURATION = 0.8; // seconds
+      const JUMP_HEIGHT = 1.9;    // world units at the top of the arc
 
       useFrame((state) => {
         const t = state.clock.elapsedTime;
@@ -280,25 +281,48 @@
         if (jumpStart.current === "pending") jumpStart.current = t;
 
         // Parabolic jump arc: 0 -> 1 -> 0 over JUMP_DURATION.
-        let jumpY = 0;
+        let jumpY = 0;      // vertical offset
+        let p = -1;         // progress through the jump, 0..1 (-1 when grounded)
         if (typeof jumpStart.current === "number") {
-          const p = (t - jumpStart.current) / JUMP_DURATION;
+          p = (t - jumpStart.current) / JUMP_DURATION;
           if (p >= 1) {
             jumpStart.current = null;
+            p = -1;
           } else {
             jumpY = Math.sin(p * Math.PI) * JUMP_HEIGHT;
           }
         }
 
+        // Squash-and-stretch: crouch at take-off/landing, stretch tall mid-air.
+        let squash = 1, stretch = 1, spin = 0, tuck = 0;
+        if (p >= 0) {
+          // ease -> a gentle anticipation crouch then a rise
+          const crouch = Math.max(0, 1 - p * 6) + Math.max(0, (p - 0.85) * 6);
+          const rise = Math.sin(p * Math.PI);
+          squash = 1 - crouch * 0.18 + rise * 0.02;      // horizontal scale
+          stretch = 1 + crouch * -0.05 + rise * 0.16;    // vertical scale
+          spin = p * Math.PI * 2;                          // one full mid-air spin
+          tuck = rise;                                     // legs tuck up at apex
+        }
+
         if (group.current) {
           // happy little bob + slight sway toward the diamond, plus any jump
           group.current.position.y = -0.55 + Math.sin(t * 3) * 0.06 + jumpY;
-          // tuck the legs up a touch and lean as he leaps
+          // lean/bob normally, whirl around while airborne
           group.current.rotation.z = Math.sin(t * 3) * 0.03;
+          group.current.rotation.y = 0.5 + spin;
+          group.current.scale.x = 0.9 * squash;
+          group.current.scale.z = 0.9 * squash;
+          group.current.scale.y = 0.9 * stretch;
+        }
+        if (legs.current) {
+          // knees pull up toward the belly at the top of the leap
+          legs.current.position.y = tuck * 0.28;
+          legs.current.rotation.x = tuck * 0.5;
         }
         if (arm.current) {
-          // the pointing arm waves excitedly at the gem
-          arm.current.rotation.z = -0.6 + Math.sin(t * 6) * 0.18;
+          // the pointing arm waves excitedly, flinging up higher mid-jump
+          arm.current.rotation.z = -0.6 + Math.sin(t * 6) * 0.18 - tuck * 0.9;
         }
       });
 
@@ -307,20 +331,20 @@
         // stand him off to the left, turned slightly to face the diamond
         { ref: group, position: [-2.7, -0.55, 0.2], rotation: [0, 0.5, 0], scale: 0.9 },
 
-        // legs
-        h("mesh", { position: [-0.16, -0.95, 0] },
-          h("cylinderGeometry", { args: [0.11, 0.11, 0.5, 12] }),
-          h("meshStandardMaterial", { color: LEP.hat, roughness: 0.8 })),
-        h("mesh", { position: [0.16, -0.95, 0] },
-          h("cylinderGeometry", { args: [0.11, 0.11, 0.5, 12] }),
-          h("meshStandardMaterial", { color: LEP.hat, roughness: 0.8 })),
-        // buckled shoes
-        h("mesh", { position: [-0.16, -1.24, 0.08] },
-          h("boxGeometry", { args: [0.2, 0.14, 0.34] }),
-          h("meshStandardMaterial", { color: "#000000", roughness: 0.7 })),
-        h("mesh", { position: [0.16, -1.24, 0.08] },
-          h("boxGeometry", { args: [0.2, 0.14, 0.34] }),
-          h("meshStandardMaterial", { color: "#000000", roughness: 0.7 })),
+        // legs + buckled shoes (grouped so they can tuck up mid-jump)
+        h("group", { ref: legs },
+          h("mesh", { position: [-0.16, -0.95, 0] },
+            h("cylinderGeometry", { args: [0.11, 0.11, 0.5, 12] }),
+            h("meshStandardMaterial", { color: LEP.hat, roughness: 0.8 })),
+          h("mesh", { position: [0.16, -0.95, 0] },
+            h("cylinderGeometry", { args: [0.11, 0.11, 0.5, 12] }),
+            h("meshStandardMaterial", { color: LEP.hat, roughness: 0.8 })),
+          h("mesh", { position: [-0.16, -1.24, 0.08] },
+            h("boxGeometry", { args: [0.2, 0.14, 0.34] }),
+            h("meshStandardMaterial", { color: "#000000", roughness: 0.7 })),
+          h("mesh", { position: [0.16, -1.24, 0.08] },
+            h("boxGeometry", { args: [0.2, 0.14, 0.34] }),
+            h("meshStandardMaterial", { color: "#000000", roughness: 0.7 }))),
 
         // pot-bellied coat / body
         h("mesh", { position: [0, -0.42, 0] },
