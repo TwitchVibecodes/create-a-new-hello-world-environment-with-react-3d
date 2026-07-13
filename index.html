@@ -416,6 +416,61 @@
       );
     }
 
+    // ---- A little swimming pool for Larry ----------------------------------
+    // A round in-ground pool: a pale tiled basin sunk into the meadow, a stone
+    // coping rim around the edge, and a translucent sheet of water whose surface
+    // gently ripples up and down. Larry stands waist-deep in the middle.
+    const POOL = {
+      center: [-2.7, 0, 0.2],
+      radius: 1.5,
+      water: "#2fb4e0",
+      basin: "#cfe9f5",
+      coping: "#e7ded0",
+    };
+
+    function Pool() {
+      const water = useRef();
+
+      useFrame((state) => {
+        if (water.current) {
+          const t = state.clock.elapsedTime;
+          // gentle bobbing water surface
+          water.current.position.y = -0.92 + Math.sin(t * 1.5) * 0.02;
+        }
+      });
+
+      const [cx, , cz] = POOL.center;
+
+      return h(
+        "group",
+        { position: [cx, 0, cz] },
+        // basin walls (open-topped cylinder sunk into the ground)
+        h("mesh", { position: [0, -1.05, 0] },
+          h("cylinderGeometry", { args: [POOL.radius, POOL.radius * 0.92, 0.9, 48, 1, true] }),
+          h("meshStandardMaterial", { color: POOL.basin, roughness: 0.5, metalness: 0.05, side: 2 })),
+        // basin floor
+        h("mesh", { position: [0, -1.48, 0], rotation: [-Math.PI / 2, 0, 0] },
+          h("circleGeometry", { args: [POOL.radius, 48] }),
+          h("meshStandardMaterial", { color: POOL.basin, roughness: 0.5 })),
+        // stone coping rim around the edge
+        h("mesh", { position: [0, -0.62, 0], rotation: [Math.PI / 2, 0, 0] },
+          h("torusGeometry", { args: [POOL.radius + 0.02, 0.14, 20, 56] }),
+          h("meshStandardMaterial", { color: POOL.coping, roughness: 0.85 })),
+        // translucent water surface
+        h("mesh", { ref: water, position: [0, -0.92, 0], rotation: [-Math.PI / 2, 0, 0] },
+          h("circleGeometry", { args: [POOL.radius - 0.06, 48] }),
+          h("meshStandardMaterial", {
+            color: POOL.water,
+            transparent: true,
+            opacity: 0.72,
+            roughness: 0.15,
+            metalness: 0.3,
+            emissive: POOL.water,
+            emissiveIntensity: 0.12,
+          }))
+      );
+    }
+
     function HelloText() {
       return h(
         Float,
@@ -441,17 +496,17 @@
       return h(
         Text,
         {
-          position: [1.7, 0.1, 0],
+          position: [-2.7, 1.0, 0.2],
           fontSize: 0.22,
           color: "#a5f3fc",
-          anchorX: "left",
+          anchorX: "center",
           anchorY: "middle",
-          maxWidth: 2.2,
+          maxWidth: 2.6,
           lineHeight: 1.15,
           outlineWidth: 0.01,
           outlineColor: "#0b0d17",
         },
-        "Larry lost his arm in the war"
+        "Larry takes a dip in the pool"
       );
     }
 
@@ -470,6 +525,7 @@
         h(ArmMessage, null),
         h(Rainbow, null),
         h(PotOfGold, null),
+        h(Pool, null),
         h(Leprechaun, null),
         h(OrbitControls, { enablePan: false, minDistance: 3, maxDistance: 12 })
       );
@@ -489,7 +545,7 @@
         h(
           "div",
           { className: "hint" },
-          "A leprechaun shows off his pot of gold under a rainbow · hover to make the gold glow · drag to orbit · scroll to zoom · click to freeze the spin"
+          "Larry the leprechaun cools off in his pool beside his pot of gold · hover to make the gold glow · drag to orbit · scroll to zoom · click to freeze the spin"
         ),
         h(
           Canvas,
