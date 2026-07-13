@@ -5,7 +5,7 @@ A minimal 3D "Hello World" environment built with **React** and **react-three-fi
 ## What's in the scene
 
 - A floating **"Hello, World!"** 3D text label
-- A spinning, interactive cube (hover to recolor, click to grow)
+- A self-folding **4D tesseract** (hypercube) — rotated through 4D space and projected to 3D so it perpetually unfolds and folds into itself (hover to recolor, click to pause the fold)
 - A starfield background
 - Orbit controls — drag to rotate, scroll to zoom
 
@@ -39,5 +39,5 @@ python3 -m http.server 8000
 Everything lives in `index.html`:
 
 - Change the greeting in the `HelloText` component.
-- Swap `boxGeometry` for `sphereGeometry`, `torusKnotGeometry`, etc. in `SpinningCube`.
+- Tune the fold in `Tesseract`: change the `rotate4d` plane speeds (`XW`, `YW`, `ZW`) or the projection `distance`.
 - Adjust lights, colors, and camera in the `Scene` / `App` components.
