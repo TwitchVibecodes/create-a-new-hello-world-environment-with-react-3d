@@ -67,6 +67,29 @@
       font-size: 14px;
       z-index: 5;
     }
+    .chatbar {
+      position: absolute;
+      bottom: 46px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 20;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .chatbar input {
+      width: 260px;
+      padding: 8px 12px;
+      font-size: 13px;
+      color: #f4f6ff;
+      background: rgba(11, 13, 23, 0.55);
+      border: 1px solid rgba(125, 211, 252, 0.35);
+      border-radius: 999px;
+      outline: none;
+      backdrop-filter: blur(4px);
+    }
+    .chatbar input::placeholder { color: #8a93b8; }
+    .chatbar input:focus { border-color: rgba(125, 211, 252, 0.7); }
   </style>
 
   <!-- Import map: pins ESM builds of React, Three.js and react-three-fiber -->
@@ -237,12 +260,40 @@
     function Leprechaun() {
       const group = useRef();
       const arm = useRef();
+      // Timestamp (in clock seconds) when the current jump began; null when grounded.
+      const jumpStart = useRef(null);
+
+      // Listen for the "/jump" command sent from the chat bar.
+      React.useEffect(() => {
+        const onJump = () => { jumpStart.current = "pending"; };
+        window.addEventListener("larry-jump", onJump);
+        return () => window.removeEventListener("larry-jump", onJump);
+      }, []);
+
+      const JUMP_DURATION = 0.75; // seconds
+      const JUMP_HEIGHT = 1.4;    // world units at the top of the arc
 
       useFrame((state) => {
         const t = state.clock.elapsedTime;
+
+        // Kick off a queued jump now that we have the current clock time.
+        if (jumpStart.current === "pending") jumpStart.current = t;
+
+        // Parabolic jump arc: 0 -> 1 -> 0 over JUMP_DURATION.
+        let jumpY = 0;
+        if (typeof jumpStart.current === "number") {
+          const p = (t - jumpStart.current) / JUMP_DURATION;
+          if (p >= 1) {
+            jumpStart.current = null;
+          } else {
+            jumpY = Math.sin(p * Math.PI) * JUMP_HEIGHT;
+          }
+        }
+
         if (group.current) {
-          // happy little bob + slight sway toward the diamond
-          group.current.position.y = -0.55 + Math.sin(t * 3) * 0.06;
+          // happy little bob + slight sway toward the diamond, plus any jump
+          group.current.position.y = -0.55 + Math.sin(t * 3) * 0.06 + jumpY;
+          // tuck the legs up a touch and lean as he leaps
           group.current.rotation.z = Math.sin(t * 3) * 0.03;
         }
         if (arm.current) {
@@ -529,6 +580,28 @@
       );
     }
 
+    // Chat-style command bar. Type "/jump" and press Enter to make Larry jump.
+    function ChatBar() {
+      const [value, setValue] = useState("");
+      const send = () => {
+        const cmd = value.trim().toLowerCase();
+        if (cmd === "/jump") {
+          window.dispatchEvent(new Event("larry-jump"));
+        }
+        setValue("");
+      };
+      return h(
+        "div",
+        { className: "chatbar" },
+        h("input", {
+          value,
+          placeholder: "Type /jump and press Enter…",
+          onChange: (e) => setValue(e.target.value),
+          onKeyDown: (e) => { if (e.key === "Enter") send(); },
+        })
+      );
+    }
+
     function App() {
       return h(
         React.Fragment,
@@ -540,10 +613,11 @@
           h("p", null, "react-three-fiber · three.js · drei"),
           h("span", { className: "badge" }, "Hello World")
         ),
+        h(ChatBar, null),
         h(
           "div",
           { className: "hint" },
-          "Larry the leprechaun wallows in a pool of mayonnaise beside his pot of gold · hover to make the gold glow · drag to orbit · scroll to zoom · click to freeze the spin"
+          "Larry the leprechaun wallows in a pool of mayonnaise beside his pot of gold · send /jump to make him jump · hover to make the gold glow · drag to orbit · scroll to zoom · click to freeze the spin"
         ),
         h(
           Canvas,
