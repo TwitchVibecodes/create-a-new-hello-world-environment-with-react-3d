@@ -423,8 +423,8 @@
     const POOL = {
       center: [-2.7, 0, 0.2],
       radius: 1.5,
-      water: "#2fb4e0",
-      basin: "#cfe9f5",
+      water: "#f7efc9", // creamy mayonnaise
+      basin: "#f2e9c4", // mayo-coated basin walls
       coping: "#e7ded0",
     };
 
@@ -434,8 +434,8 @@
       useFrame((state) => {
         if (water.current) {
           const t = state.clock.elapsedTime;
-          // gentle bobbing water surface
-          water.current.position.y = -0.92 + Math.sin(t * 1.5) * 0.02;
+          // thick mayonnaise barely wobbles — a slow, heavy jiggle
+          water.current.position.y = -0.9 + Math.sin(t * 0.8) * 0.008;
         }
       });
 
@@ -456,17 +456,15 @@
         h("mesh", { position: [0, -0.62, 0], rotation: [Math.PI / 2, 0, 0] },
           h("torusGeometry", { args: [POOL.radius + 0.02, 0.14, 20, 56] }),
           h("meshStandardMaterial", { color: POOL.coping, roughness: 0.85 })),
-        // translucent water surface
-        h("mesh", { ref: water, position: [0, -0.92, 0], rotation: [-Math.PI / 2, 0, 0] },
+        // thick, opaque mayonnaise surface — a matte, creamy gloop
+        h("mesh", { ref: water, position: [0, -0.9, 0], rotation: [-Math.PI / 2, 0, 0] },
           h("circleGeometry", { args: [POOL.radius - 0.06, 48] }),
           h("meshStandardMaterial", {
             color: POOL.water,
-            transparent: true,
-            opacity: 0.72,
-            roughness: 0.15,
-            metalness: 0.3,
-            emissive: POOL.water,
-            emissiveIntensity: 0.12,
+            roughness: 0.85,
+            metalness: 0.0,
+            emissive: "#fff6d8",
+            emissiveIntensity: 0.06,
           }))
       );
     }
@@ -506,7 +504,7 @@
           outlineWidth: 0.01,
           outlineColor: "#0b0d17",
         },
-        "Larry takes a dip in the pool"
+        "Larry wallows in a pool of mayonnaise"
       );
     }
 
@@ -545,7 +543,7 @@
         h(
           "div",
           { className: "hint" },
-          "Larry the leprechaun cools off in his pool beside his pot of gold · hover to make the gold glow · drag to orbit · scroll to zoom · click to freeze the spin"
+          "Larry the leprechaun wallows in a pool of mayonnaise beside his pot of gold · hover to make the gold glow · drag to orbit · scroll to zoom · click to freeze the spin"
         ),
         h(
           Canvas,
